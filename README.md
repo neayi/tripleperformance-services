@@ -2,6 +2,8 @@
 
 Web services that are used to enhance Triple Performance
 
+> 📚 **Interactive API Documentation**: Automatic API documentation is included! See [API_DOCUMENTATION.md](API_DOCUMENTATION.md) for details.
+
 ## Overview
 
 This repository contains Python-based web services and scheduled workers for Triple Performance. The services are containerized using Docker and include:
@@ -49,13 +51,85 @@ docker build -t tripleperformance-services .
 docker run -p 8000:8000 tripleperformance-services
 ```
 
-## API Documentation
+## 📚 API Documentation
 
-Once the service is running, you can access:
+**Interactive documentation is automatically generated and available as soon as you start the service!**
 
-- **API Documentation (Swagger UI)**: http://localhost:8000/docs
-- **Alternative API Documentation (ReDoc)**: http://localhost:8000/redoc
-- **Health Check**: http://localhost:8000/
+FastAPI provides beautiful, interactive API documentation out-of-the-box. No additional setup required.
+
+### Available Documentation Interfaces
+
+Once the service is running, access the documentation at:
+
+#### 1. 🎯 Swagger UI (Interactive)
+**URL**: http://localhost:8000/docs
+
+The Swagger UI provides:
+- ✨ **Interactive API explorer** - Try endpoints directly from your browser
+- 📝 **Request/Response examples** - See example data for all endpoints
+- 🔍 **Schema inspection** - View detailed models and data structures
+- 🧪 **Live testing** - Execute API calls and see real responses
+- 📋 **Copy-paste curl commands** - Easy integration with command line
+
+#### 2. 📖 ReDoc (Clean & Professional)
+**URL**: http://localhost:8000/redoc
+
+The ReDoc interface offers:
+- 📄 **Clean, readable format** - Professional documentation layout
+- 🔎 **Search functionality** - Quickly find endpoints
+- 🖨️ **Print-friendly** - Great for PDF exports
+- 📱 **Responsive design** - Works on all devices
+- 🎨 **Better for presentations** - Polished look for stakeholders
+
+#### 3. 🔧 OpenAPI JSON Schema
+**URL**: http://localhost:8000/openapi.json
+
+Machine-readable API specification:
+- 🤖 **API client generation** - Use with Swagger Codegen, OpenAPI Generator
+- 🔗 **Integration tools** - Import into Postman, Insomnia, etc.
+- 📊 **API testing frameworks** - Integrate with automated tests
+- 📐 **Contract testing** - Validate API implementations
+
+### Documentation Features
+
+All endpoints include:
+- **Detailed descriptions** with markdown formatting
+- **Parameter examples** showing valid inputs
+- **Response schemas** with field descriptions
+- **Example requests and responses** 
+- **Tags for organization** (Health, Translation, Transcripts)
+- **HTTP status codes** for different scenarios
+
+### Quick Start with Documentation
+
+1. Start the service:
+   ```bash
+   docker-compose up
+   ```
+
+2. Open your browser to:
+   ```
+   http://localhost:8000/docs
+   ```
+
+3. Try the "Health Check" endpoint:
+   - Click on `GET /` 
+   - Click "Try it out"
+   - Click "Execute"
+   - See the live response!
+
+4. Test the Translation endpoint:
+   - Click on `POST /translation/translate/{source_lang}/{dest_lang}/page`
+   - Click "Try it out"
+   - Enter `en` for source_lang and `fr` for dest_lang
+   - Modify the request body if desired
+   - Click "Execute"
+
+### Health Check Endpoint
+
+- **URL**: http://localhost:8000/
+- **Method**: GET
+- **Purpose**: Verify service is running
 
 ## API Usage Examples
 
