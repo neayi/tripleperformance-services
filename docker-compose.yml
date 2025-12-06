@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   tripleperformance-services:
     build:
@@ -8,11 +6,18 @@ services:
     container_name: tripleperformance-services
     ports:
       - "8000:8000"
+      - "5678:5678"  # Debug port
+    env_file:
+      - .env
     environment:
       - PYTHONUNBUFFERED=1
+      - DEBUG=1
     volumes:
       # Mount logs directory for easy access to cron logs
       - ./logs:/var/log
+      # Mount source code for live debugging
+      - ./app:/app/app
+      - ./workers:/app/workers
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]

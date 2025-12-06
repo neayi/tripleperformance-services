@@ -151,7 +151,7 @@ curl -X POST "http://localhost:8000/translation/translate/en/fr/page" \
 
 ### Get Transcripts
 
-**Endpoint**: `POST /get_transcripts/{page}`
+**Endpoint**: `POST /fetch_transcripts/{page}`
 
 Retrieve transcripts for a specific page.
 
@@ -161,7 +161,7 @@ Retrieve transcripts for a specific page.
 
 **Example Request**:
 ```bash
-curl -X POST "http://localhost:8000/get_transcripts/example-page" \
+curl -X POST "http://localhost:8000/fetch_transcripts/example-page" \
   -H "Content-Type: application/json" \
   -d '{
     "options": {

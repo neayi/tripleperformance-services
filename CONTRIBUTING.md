@@ -91,8 +91,8 @@ async def translate_page(source_lang: str, dest_lang: str, request: TranslationR
 The transcripts endpoint is in `app/main.py`:
 
 ```python
-@app.post("/get_transcripts/{page}")
-async def get_transcripts(page: str, request: TranscriptRequest):
+@app.post("/fetch_transcripts/{page}")
+async def fetch_transcripts(page: str, request: TranscriptRequest):
     # TODO: Implement transcript retrieval logic here
     # Connect to your data source
     pass
@@ -132,7 +132,7 @@ curl -X POST "http://localhost:8000/translation/translate/en/fr/page" \
   -d '{"content": {"text": "Hello"}}'
 
 # Transcripts endpoint
-curl -X POST "http://localhost:8000/get_transcripts/test-page" \
+curl -X POST "http://localhost:8000/fetch_transcripts/test-page" \
   -H "Content-Type: application/json" \
   -d '{"options": {}}'
 ```

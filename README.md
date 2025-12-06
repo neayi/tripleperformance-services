@@ -11,7 +11,7 @@ This repository contains Python-based web services and scheduled workers for Tri
 ### Web Services (FastAPI)
 
 - **POST /translation/translate/{source_lang}/{dest_lang}/page** - Translate page content between languages
-- **POST /get_transcripts/{page}** - Get transcripts for a specific page
+- **POST /fetch_transcripts/{page}** - Get transcripts for a specific page
 - **GET /** - Health check endpoint
 
 ### Scheduled Workers
@@ -96,7 +96,7 @@ All endpoints include:
 - **Detailed descriptions** with markdown formatting
 - **Parameter examples** showing valid inputs
 - **Response schemas** with field descriptions
-- **Example requests and responses** 
+- **Example requests and responses**
 - **Tags for organization** (Health, Translation, Transcripts)
 - **HTTP status codes** for different scenarios
 
@@ -113,7 +113,7 @@ All endpoints include:
    ```
 
 3. Try the "Health Check" endpoint:
-   - Click on `GET /` 
+   - Click on `GET /`
    - Click "Try it out"
    - Click "Execute"
    - See the live response!
@@ -150,7 +150,7 @@ curl -X POST "http://localhost:8000/translation/translate/en/fr/page" \
 ### Get Transcripts
 
 ```bash
-curl -X POST "http://localhost:8000/get_transcripts/example-page" \
+curl -X POST "http://localhost:8000/fetch_transcripts/example-page" \
   -H "Content-Type: application/json" \
   -d '{"options": {}}'
 ```
@@ -211,7 +211,7 @@ curl -X POST "http://localhost:8000/translation/translate/en/fr/page" \
   -d '{}'
 
 # Test transcripts endpoint
-curl -X POST "http://localhost:8000/get_transcripts/test-page" \
+curl -X POST "http://localhost:8000/fetch_transcripts/test-page" \
   -H "Content-Type: application/json" \
   -d '{}'
 ```
@@ -225,7 +225,7 @@ The following items are scaffolded and require implementation:
    - Integrate with translation APIs or libraries
 
 2. **Transcripts Service Implementation**
-   - Add transcript retrieval logic in `/get_transcripts/{page}`
+   - Add transcript retrieval logic in `/fetch_transcripts/{page}`
    - Connect to data source
 
 3. **Interwiki Links Checker Implementation**
