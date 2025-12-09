@@ -7,3 +7,5 @@ pwiki
 mwparserfromhell==0.6.6
 debugpy==1.8.0
 yt-dlp
+sqlalchemy==2.0.23
+aiosqlite==0.19.0

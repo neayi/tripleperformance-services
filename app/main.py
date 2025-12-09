@@ -4,14 +4,29 @@ Main FastAPI application for Triple Performance Services.
 This application provides web services to enhance Triple Performance.
 """
 import requests
-from fastapi import FastAPI, Path
+from fastapi import FastAPI, Path, Depends, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import os
 from urllib.parse import urlencode
 from pwiki.wiki import Wiki
 import mwparserfromhell
 import yt_dlp
+from sqlalchemy.orm import Session
+from pathlib import Path as PathLib
+import logging
+from datetime import datetime, timezone
+
+from app.database import get_db, init_db
+from app.models import Task, TaskStatus
+from app import tasks as task_service
+from app.transcription_service import TranscriptionService
+
+logger = logging.getLogger(__name__)
+
+# Initialize transcription service
+transcription_service = TranscriptionService()
 
 app = FastAPI(
     title="Triple Performance Services",
@@ -45,6 +60,12 @@ app = FastAPI(
         "url": "https://github.com/neayi/tripleperformance-services/blob/main/LICENSE",
     },
 )
+
+
+@app.on_event("startup")
+def startup_event():
+    """Initialize database on startup."""
+    init_db()
 
 
 class TranslationRequest(BaseModel):
@@ -231,9 +252,10 @@ async def fetch_transcripts(
     page: str = Path(
         ...,
         description="Page identifier or URL slug",
-        examples=["14 ANS D'ESSAIS : L’azote disponible peut-il être un facteur limitant en ACS"]
+        examples=["14 ANS D'ESSAIS : L'azote disponible peut-il être un facteur limitant en ACS"]
     ),
-    request: TranscriptRequest = None
+    request: TranscriptRequest = None,
+    db: Session = Depends(get_db)
 ):
     """
     ## Get transcripts for a specific page
@@ -327,7 +349,17 @@ async def fetch_transcripts(
                 transcripts = fetched_transcripts
                 break
 
-        transcripts = None  # Implementation pending for fetching or generating transcripts
+        # If all methods failed, spawn a transcription task as fallback
+        if transcripts is None and youtube_urls:
+            logger.info(f"No transcripts available, creating transcription task for page: {page}")
+            result = transcription_service.create_transcription_task(
+                db,
+                video_url=youtube_urls[0],
+                page_name=page,
+                wiki_lang=wikilang
+            )
+            if result["success"]:
+                logger.info(f"Created transcription task {result['task_id']} for {page}")
 
     return TranscriptResponse(
         success=True,
@@ -441,3 +473,236 @@ def fetch_transcripts_using_ytDLP(wikilanguage: str, youtube_url: str) -> Option
         return None
 
     return None
+
+
+# Task Management Endpoints
+
+class TaskResponse(BaseModel):
+    """Response model for task information."""
+    id: int
+    task_type: str
+    status: str
+    page_name: Optional[str] = None
+    wiki_lang: Optional[str] = None
+    video_url: Optional[str] = None
+    result: Optional[str] = None
+    error_message: Optional[str] = None
+    created_at: str
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+
+
+@app.get(
+    "/tasks",
+    response_model=List[TaskResponse],
+    tags=["Tasks"],
+    summary="List all tasks",
+    response_description="List of tasks with optional filters"
+)
+async def list_tasks(
+    task_type: Optional[str] = None,
+    status: Optional[str] = None,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """
+    ## List all tasks
+
+    Get a list of all tasks with optional filtering by type and status.
+
+    ### Parameters
+
+    * **task_type**: Filter by task type (e.g., 'fetch_transcripts', 'translation')
+    * **status**: Filter by status (pending, running, completed, failed, cancelled)
+    * **limit**: Maximum number of tasks to return (default: 100)
+    """
+    status_enum = TaskStatus[status.upper()] if status else None
+    tasks = task_service.get_tasks(db, task_type=task_type, status=status_enum, limit=limit)
+
+    return [
+        TaskResponse(
+            id=task.id,
+            task_type=task.task_type,
+            status=task.status.value,
+            page_name=task.page_name,
+            wiki_lang=task.wiki_lang,
+            video_url=task.video_url,
+            result=task.result,
+            error_message=task.error_message,
+            created_at=task.created_at.isoformat() if task.created_at else None,
+            started_at=task.started_at.isoformat() if task.started_at else None,
+            completed_at=task.completed_at.isoformat() if task.completed_at else None
+        )
+        for task in tasks
+    ]
+
+
+@app.get(
+    "/tasks/{task_id}",
+    response_model=TaskResponse,
+    tags=["Tasks"],
+    summary="Get task by ID",
+    response_description="Task details"
+)
+async def get_task(
+    task_id: int = Path(..., description="Task ID"),
+    db: Session = Depends(get_db)
+):
+    """
+    ## Get task details
+
+    Retrieve detailed information about a specific task.
+    """
+    task = task_service.get_task(db, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    return TaskResponse(
+        id=task.id,
+        task_type=task.task_type,
+        status=task.status.value,
+        page_name=task.page_name,
+        wiki_lang=task.wiki_lang,
+        video_url=task.video_url,
+        result=task.result,
+        error_message=task.error_message,
+        created_at=task.created_at.isoformat() if task.created_at else None,
+        started_at=task.started_at.isoformat() if task.started_at else None,
+        completed_at=task.completed_at.isoformat() if task.completed_at else None
+    )
+
+
+# Audio files directory
+AUDIO_DIR = PathLib("/app/audio")
+AUDIO_DIR.mkdir(exist_ok=True)
+
+
+@app.get(
+    "/audio/{filename}",
+    tags=["Audio"],
+    summary="Get audio file",
+    response_description="Audio file"
+)
+async def get_audio_file(
+    filename: str = Path(..., description="Audio filename")
+):
+    """
+    ## Serve audio files
+
+    Returns the audio file for downloaded YouTube videos.
+    These files are used by Fireflies.ai for transcription.
+
+    ### Security Note
+
+    In production, consider adding authentication or using signed URLs.
+    """
+    audio_path = AUDIO_DIR / filename
+
+    if not audio_path.exists():
+        raise HTTPException(status_code=404, detail="Audio file not found")
+
+    # Validate filename to prevent directory traversal
+    if ".." in filename or "/" in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    return FileResponse(
+        path=audio_path,
+        media_type="audio/mpeg",
+        filename=filename
+    )
+
+
+# Fireflies Webhook Endpoint
+
+class FirefliesWebhookPayload(BaseModel):
+    """Request model for Fireflies webhook."""
+    meeting_id: str = Field(..., description="Fireflies meeting ID")
+    title: str = Field(..., description="Meeting title")
+    status: str = Field(..., description="Meeting status (e.g., 'completed')")
+    transcript: Optional[str] = Field(None, description="Full transcript text")
+    language: Optional[str] = Field(None, description="Detected language")
+    duration: Optional[int] = Field(None, description="Meeting duration in seconds")
+    audio_url: Optional[str] = Field(None, description="Audio URL")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "meeting_id": "abc123",
+                "title": "Video Transcription",
+                "status": "completed",
+                "transcript": "This is the full transcript text...",
+                "language": "fr",
+                "duration": 1200,
+                "audio_url": "http://example.com/audio/video.mp3"
+            }
+        }
+
+
+class FirefliesWebhookResponse(BaseModel):
+    """Response model for Fireflies webhook."""
+    success: bool
+    message: str
+    page_updated: Optional[bool] = None
+
+
+@app.post(
+    "/webhooks/fireflies",
+    response_model=FirefliesWebhookResponse,
+    tags=["Webhooks"],
+    summary="Fireflies transcription webhook",
+    response_description="Webhook processing result"
+)
+async def fireflies_webhook(
+    payload: FirefliesWebhookPayload,
+    db: Session = Depends(get_db)
+):
+    """
+    ## Fireflies.ai Webhook Endpoint
+
+    This endpoint receives callbacks from Fireflies.ai when transcription is completed.
+
+    ### Workflow:
+
+    1. Receives transcription data from Fireflies
+    2. Finds the corresponding task in the database by meeting_id
+    3. Updates the task with transcription results
+    4. Stores the transcription in the MediaWiki page
+    5. Sets the "A des transcriptions" semantic property to true
+
+    ### Configuration:
+
+    In your Fireflies.ai dashboard, configure the webhook URL:
+    ```
+    https://your-domain.com/webhooks/fireflies
+    ```
+
+    ### Parameters:
+
+    * **meeting_id**: Fireflies meeting ID (used to find the task)
+    * **title**: Meeting title
+    * **status**: Processing status ('completed', 'failed', etc.)
+    * **transcript**: Full transcript text
+    * **language**: Detected language
+    * **duration**: Duration in seconds
+    * **audio_url**: Original audio URL
+
+    ### Returns:
+
+    Success/failure status and whether the wiki page was updated.
+    """
+    result = transcription_service.process_fireflies_webhook(
+        db,
+        meeting_id=payload.meeting_id,
+        title=payload.title,
+        status=payload.status,
+        transcript=payload.transcript,
+        language=payload.language,
+        duration=payload.duration,
+        audio_url=payload.audio_url
+    )
+
+    return FirefliesWebhookResponse(
+        success=result["success"],
+        message=result["message"],
+        page_updated=result.get("page_updated")
+    )
